@@ -362,7 +362,7 @@ class CSV_log:
     def check_lims_list(self,lims):
         if type(lims) is list:
             l=np.array(lims)
-            if str(np.shape(l))=='(4L, 2L)':
+            if np.shape(l) == (4,2):
                 ll=l[:,1]-l[:,0]
                 if np.sum(np.abs((ll-np.abs(ll))))==0:
                     return True
