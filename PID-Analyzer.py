@@ -362,7 +362,7 @@ class CSV_log:
     def check_lims_list(self,lims):
         if type(lims) is list:
             l=np.array(lims)
-            if np.shape(l) == (4,2):
+            if str(np.shape(l))=='(4L, 2L)':
                 ll=l[:,1]-l[:,0]
                 if np.sum(np.abs((ll-np.abs(ll))))==0:
                     return True
@@ -391,7 +391,7 @@ class CSV_log:
         meanspec_max = np.max(meanspec*mask[:-1])
 
         if not self.check_lims_list(lims):
-            lims=np.array([[1,max_noise_gyro],[1, max_noise_debug], [1, max_noise_d], [0,meanspec_max*1.5]])
+             lims=np.array([[1,20],[1, 20], [1, 20], [0,meanspec_max*1.5]])
             if lims[0,1] == 1:
                 lims[0,1]=100.
             if lims[1, 1] == 1:
@@ -964,7 +964,7 @@ if __name__ == "__main__":
         default=os.path.join(os.getcwd(), 'Blackbox_decode.exe'),
         help='Path to Blackbox_decode.exe.')
     parser.add_argument('-s', '--show', default='Y', help='Y = show plot window when done.\nN = Do not. \nDefault = Y')
-    parser.add_argument('-nb', '--noise_bounds', default='[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
+    parser.add_argument('-nb', '--noise_bounds', default='[[1.,20.],[1.,20.],[1.,20.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
     args = parser.parse_args()
 
     blackbox_decode_path = clean_path(args.blackbox_decode)
