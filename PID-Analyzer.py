@@ -391,7 +391,7 @@ class CSV_log:
         meanspec_max = np.max(meanspec*mask[:-1])
 
         if not self.check_lims_list(lims):
-             lims=np.array([[1,max_noise_gyro],[1, max_noise_debug], [1, max_noise_d], [0,meanspec_max*1.5]])
+            lims=np.array([[1,max_noise_gyro],[1, max_noise_debug], [1, max_noise_d], [0,meanspec_max*1.5]])
             if lims[0,1] == 1:
                 lims[0,1]=100.
             if lims[1, 1] == 1:
