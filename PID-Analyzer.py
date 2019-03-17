@@ -971,7 +971,7 @@ if __name__ == "__main__":
         default=os.path.join(os.getcwd(), 'Blackbox_decode.exe'),
         help='Path to Blackbox_decode.exe.')
     parser.add_argument('-s', '--show', default='Y', help='Y = show plot window when done.\nN = Do not. \nDefault = Y')
-    parser.add_argument('-nb', '--noise_bounds', default='[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
+    parser.add_argument('-nb', '--noise_bounds', default='[[1.,20.],[1.,20.],[1.,20.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
     args = parser.parse_args()
 
     blackbox_decode_path = clean_path(args.blackbox_decode)
