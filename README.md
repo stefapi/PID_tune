@@ -64,3 +64,54 @@ Happy tuning,
 
 Flo
 
+## How to use for Mac OSX:
+
+## Install:
+Python:   https://www.python.org/downloads/
+PIP:      https://pip.pypa.io/en/stable/installing/
+Git:      https://git-scm.com/book/en/v2/Getting-Started-Installing-Git
+Homebrew: https://brew.sh/
+
+## Optional Install:
+X-Code:   https://developer.apple.com/xcode/
+## Or
+Atom:     https://atom.io/
+
+## Open Terminal - Do:
+
+git clone https://github.com/cleanflight/blackbox-tools.git
+
+cd blackbox-tools
+
+brew install cairo --without-x11 pkg-config
+
+make
+
+cd ..
+
+git clone https://github.com/Bradw-17/PID-Analyzer.git
+
+cd PID-Analyzer
+
+pip install -r requirements.txt
+
+## Normal Use in Terminal:
+
+cd PID-Analyzer
+
+python PID-Analyzer.py --blackbox_decode ../blackbox-tools/obj/blackbox_decode -l 
+
+>*Drag and drop log to TERMINAL window*
+
+##  Hit enter and boom!
+
+## Scale fix: 
+
+Open Pid-Analyzer.py with TextEdit, (or download Github's "Atom" program, Mac X-Code, etc. to see line counts)
+
+Paste over line #365 with:
+if np.shape(l) == (4,2) 
+
+Save and close. Your noise plots will now be at the same scale that Windows users manually enter. (Also the scale most useful for noise analysis) 
+
+## Credit: Martin Hapl
