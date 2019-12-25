@@ -935,8 +935,8 @@ class BB_log:
                     else:
                         output = open(bbl_session[:-3]+'01.csv', "w")
                         parser = orangebox.Parser.load(bbl_session)
-                        with output as f1:
-                            writer = csv.writer(f1)
+                        with output as f:
+                            writer = csv.writer(f)
                             writer.writerow(parser.field_names)
                             for frame in parser.frames():
                                 writer.writerow(frame.data)
