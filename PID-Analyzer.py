@@ -348,7 +348,7 @@ class Trace:
 
 class CSV_log:
 
-    def __init__(self, fpath, name, headdict, noise_bounds):
+    def __init__(self, fpath, name, headdict, noise_bounds, noise_cmap):
         self.file = fpath
         self.name = name
         self.headdict = headdict
@@ -359,7 +359,7 @@ class CSV_log:
         self.traces = self.find_traces(self.data)
         self.roll, self.pitch, self.yaw = self.__analyze()
         self.fig_resp = self.plot_all_resp([self.roll, self.pitch, self.yaw])
-        self.fig_noise = self.plot_all_noise([self.roll, self.pitch, self.yaw],noise_bounds)
+        self.fig_noise = self.plot_all_noise([self.roll, self.pitch, self.yaw], noise_bounds, noise_cmap)
 
     def check_lims_list(self,lims):
         if type(lims) is list:
@@ -372,7 +372,7 @@ class CSV_log:
             logging.info('noise_bounds is no valid list')
             return False
 
-    def plot_all_noise(self, traces, lims): #style='fancy' gives 2d hist for response
+    def plot_all_noise(self, traces, lims, cmap='viridis'): #style='fancy' gives 2d hist for response
         textsize = 7
         rcParams.update({'font.size': 9})
 
@@ -406,7 +406,6 @@ class CSV_log:
         cax_gyro = plt.subplot(gs1[0, 0:7])
         cax_debug = plt.subplot(gs1[0, 8:15])
         cax_d = plt.subplot(gs1[0, 16:23])
-        cmap='viridis'
 
         axes_gyro = []
         axes_debug = []
@@ -776,7 +775,7 @@ class CSV_log:
 
 
 class BB_log:
-    def __init__(self, log_file_path, name, blackbox_decode, show, noise_bounds):
+    def __init__(self, log_file_path, name, blackbox_decode, show, noise_bounds, noise_cmap):
         self.blackbox_decode_bin_path = blackbox_decode
         self.tmp_dir = os.path.join(os.path.dirname(log_file_path), name)
         if not os.path.isdir(self.tmp_dir):
@@ -784,6 +783,7 @@ class BB_log:
         self.name = name
         self.show=show
         self.noise_bounds=noise_bounds
+        self.noise_cmap=noise_cmap
 
         self.loglist = self.decode(log_file_path)
         self.heads = self.beheader(self.loglist)
@@ -804,7 +804,7 @@ class BB_log:
     def _csv_iter(self, heads):
         figs = []
         for h in heads:
-            analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds)
+            analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds, self.noise_cmap)
             #figs.append([analysed.fig_resp,analysed.fig_noise])
             if self.show!='Y':
                 plt.cla()
@@ -953,8 +953,8 @@ class BB_log:
         return loglist
 
 
-def run_analysis(log_file_path, plot_name, blackbox_decode, show, noise_bounds):
-    test = BB_log(log_file_path, plot_name, blackbox_decode, show, noise_bounds)
+def run_analysis(log_file_path, plot_name, blackbox_decode, show, noise_bounds, noise_cmap):
+    test = BB_log(log_file_path, plot_name, blackbox_decode, show, noise_bounds, noise_cmap)
     logging.info('Analysis complete, showing plot. (Close plot to exit.)')
 
 
@@ -983,6 +983,7 @@ if __name__ == "__main__":
         help='Path to Blackbox_decode.exe\nDefault = ./Blackbox_decode.exe')
     parser.add_argument('-s', '--show', default='Y', help='Y = show plot window when done.\nN = Do not. \nDefault = Y')
     parser.add_argument('-nb', '--noise_bounds', default='[[1.,20.],[1.,20.],[1.,20.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling.\nDefault = [[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
+    parser.add_argument('-nc', '--noise_cmap', default='viridis', help='Noise plots color map, see "images" dir for vaild values\nhttps://matplotlib.org/3.1.0/tutorials/colors/colormaps.html\nDefault = viridis')
     args = parser.parse_args()
 
     blackbox_decode_path = clean_path(args.blackbox_decode)
@@ -1006,7 +1007,7 @@ if __name__ == "__main__":
 
     if args.log:
         for log_path in args.log:
-            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, args.show, args.noise_bounds)
+            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap)
         if args.show.upper() == 'Y':
             plt.show()
         else:
@@ -1044,7 +1045,7 @@ if __name__ == "__main__":
 
             for p in raw_paths:
                 if os.path.isfile(clean_path(p)):
-                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds)
+                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap)
                 else:
                     logging.info('No valid input path!')
             if args.show == 'Y':
