@@ -14,6 +14,8 @@ from scipy.ndimage.filters import gaussian_filter1d
 import matplotlib.colors as colors
 from scipy.optimize import minimize, basinhopping
 from six.moves import input as sinput
+import orangebox
+import csv
 
 
 # ----------------------------------------------------------------------------------
@@ -291,7 +293,7 @@ class Trace:
         weights = abs(spec.real)
         avr_thr = np.abs(thr).max(axis=1)
 
-        hist2d=self.hist2d(avr_thr, freq,weights,[101,len(freq)/4])
+        hist2d=self.hist2d(avr_thr, freq,weights,[101,len(freq)//4])
 
         filt_width = 3  # width of gaussian smoothing for hist data
         hist2d_sm = gaussian_filter1d(hist2d['hist2d_norm'], filt_width, axis=1, mode='constant')
@@ -681,7 +683,7 @@ class CSV_log:
         datdic = {}
         global correctdebugmode
         ### keycheck for 'usecols' only reads usefull traces, uncommend if needed
-        wanted =  ['time (us)',
+        wanted =  ['time (us)','time',
                    'rcCommand[0]', 'rcCommand[1]', 'rcCommand[2]', 'rcCommand[3]',
                    'axisP[0]','axisP[1]','axisP[2]',
                    'axisI[0]', 'axisI[1]', 'axisI[2]',
@@ -695,7 +697,7 @@ class CSV_log:
                    #'energyCumulative (mAh)','vbatLatest (V)', 'amperageLatest (A)'
                    ]
         data = read_csv(fpath, header=0, skipinitialspace=1, usecols=lambda k: k in wanted, dtype=np.float64)
-        datdic.update({'time_us': data['time (us)'].values * 1e-6})
+        datdic.update({'time_us': data['time (us)'].values * 1e-6 if 'time (us)' in data.columns else data['time'].values * 1e-6})
         datdic.update({'throttle': data['rcCommand[3]'].values})
 
         correctdebugmode = not np.any(data['debug[3]']) # if debug[3] contains data, debug_mode is not correct for plotting
@@ -928,7 +930,16 @@ class BB_log:
             size_bytes = os.path.getsize(os.path.join(self.tmp_dir, bbl_session))
             if size_bytes > LOG_MIN_BYTES:
                 try:
-                    msg = subprocess.check_call([self.blackbox_decode_bin_path, bbl_session])
+                    if os.path.isfile(self.blackbox_decode_bin_path):
+                        msg = subprocess.check_call([self.blackbox_decode_bin_path, bbl_session])
+                    else:
+                        output = open(bbl_session[:-3]+'01.csv', "w")
+                        parser = orangebox.Parser.load(bbl_session)
+                        with output as f:
+                            writer = csv.writer(f)
+                            writer.writerow(parser.field_names)
+                            for frame in parser.frames():
+                                writer.writerow(frame.data)
                     loglist.append(bbl_session)
                 except:
                     logging.error(
@@ -981,12 +992,14 @@ if __name__ == "__main__":
     except:
         args.noise_bounds = args.noise_bounds
     if not os.path.isfile(blackbox_decode_path):
-        parser.error(
+        logging.warning(
             ('Could not find Blackbox_decode.exe (used to generate CSVs from '
-             'your BBL file) at %s. You may need to install it from '
+             'your BBL file) at %s. You may want to install it from '
              'https://github.com/cleanflight/blackbox-tools/releases.')
             % blackbox_decode_path)
-    logging.info('Decoding with %r' % blackbox_decode_path)
+        logging.info('Decoding with orangebox')
+    else:
+        logging.info('Decoding with %r' % blackbox_decode_path)
 
     logging.info(Version)
     logging.info('Hello Pilot!')
