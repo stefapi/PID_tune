@@ -959,26 +959,41 @@ if __name__ == "__main__":
         '-l', '--log', action='append',
         help='BBL log file(s) to analyse. Omit for interactive prompt.')
     parser.add_argument('-n', '--name', default='tmp', help='Plot name.')
+
+    if os.name=='nt':
+        default_blackbox_decode='blackbox_decode.exe'
+    else:
+        default_blackbox_decode='blackbox_decode'
+
     parser.add_argument(
         '--blackbox_decode',
-        default=os.path.join(os.getcwd(), 'Blackbox_decode.exe'),
-        help='Path to Blackbox_decode.exe.')
+        default=default_blackbox_decode,
+        help='Path to blackbox_decode executable.')
+
     parser.add_argument('-s', '--show', default='Y', help='Y = show plot window when done.\nN = Do not. \nDefault = Y')
     parser.add_argument('-nb', '--noise_bounds', default='[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
     args = parser.parse_args()
 
-    blackbox_decode_path = clean_path(args.blackbox_decode)
     try:
         args.noise_bounds = eval(args.noise_bounds)
-
     except:
         args.noise_bounds = args.noise_bounds
-    if not os.path.isfile(blackbox_decode_path):
+
+    blackbox_decode_path = args.blackbox_decode
+
+    try:
+        msg = subprocess.check_call([blackbox_decode_path, "--version"])
+    except subprocess.CalledProcessError:
+        logging.info('"%s" return non-zero exitcode' % blackbox_decode_path)
+    except Exception as e:
+        logging.error('cannot run "%s"' % blackbox_decode_path, exc_info=False)
         parser.error(
-            ('Could not find Blackbox_decode.exe (used to generate CSVs from '
-             'your BBL file) at %s. You may need to install it from '
-             'https://github.com/cleanflight/blackbox-tools/releases.')
-            % blackbox_decode_path)
+            ('Could not run blackbox_decode (used to generate CSVs from '
+             'your BBL file) from "%s".\nYou may need to install it from '
+             'https://github.com/cleanflight/blackbox-tools/releases.\n'
+             'Error %s\n')
+            % (blackbox_decode_path, str(e)))
+
     logging.info('Decoding with %r' % blackbox_decode_path)
 
     logging.info(Version)
