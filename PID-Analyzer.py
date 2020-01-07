@@ -798,7 +798,7 @@ class BB_log:
         for h in heads:
             analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds)
             #figs.append([analysed.fig_resp,analysed.fig_noise])
-            if self.show_gui:
+            if not self.show_gui:
                 plt.cla()
                 plt.clf()
         return figs
