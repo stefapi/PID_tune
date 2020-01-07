@@ -2,6 +2,7 @@
 import argparse
 import logging
 import os
+import sys
 import subprocess
 import time
 import numpy as np
@@ -767,14 +768,14 @@ class CSV_log:
 
 
 class BB_log:
-    def __init__(self, log_file_path, name, blackbox_decode, show, noise_bounds):
+    def __init__(self, log_file_path, name, blackbox_decode, show_gui, noise_bounds):
         self.blackbox_decode_bin_path = blackbox_decode
         self.tmp_dir = os.path.join(os.path.dirname(log_file_path), name)
         if not os.path.isdir(self.tmp_dir):
             os.makedirs(self.tmp_dir)
         self.name = name
-        self.show=show
-        self.noise_bounds=noise_bounds
+        self.show_gui = show_gui
+        self.noise_bounds = noise_bounds
 
         self.loglist = self.decode(log_file_path)
         self.heads = self.beheader(self.loglist)
@@ -797,7 +798,7 @@ class BB_log:
         for h in heads:
             analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds)
             #figs.append([analysed.fig_resp,analysed.fig_noise])
-            if self.show!='Y':
+            if self.show_gui:
                 plt.cla()
                 plt.clf()
         return figs
@@ -935,8 +936,8 @@ class BB_log:
         return loglist
 
 
-def run_analysis(log_file_path, plot_name, blackbox_decode, show, noise_bounds):
-    test = BB_log(log_file_path, plot_name, blackbox_decode, show, noise_bounds)
+def run_analysis(log_file_path, plot_name, blackbox_decode, show_gui, noise_bounds):
+    test = BB_log(log_file_path, plot_name, blackbox_decode, show_gui, noise_bounds)
     logging.info('Analysis complete, showing plot. (Close plot to exit.)')
 
 
@@ -949,15 +950,65 @@ def clean_path(path):
     return os.path.abspath(os.path.expanduser(strip_quotes(path)))
 
 
+def run_interactive(name, blackbox_decode, show_gui, noise_bounds):
+    logging.info('Interactive mode: Enter log file, or type "close" when done.')
+
+    while True:
+        try:
+            time.sleep(0.1)
+            raw_path = sinput('Blackbox log file path (type or drop here): ')
+
+            if raw_path == 'close':
+                logging.info('Goodbye!')
+                break
+
+            raw_paths = strip_quotes(raw_path).replace("''", '""').split('""')  # seperate multiple paths
+            name = sinput('Optional plot name:')
+            show_gui_str = sinput('Show plot window when done? [Y]/N')
+            if show_gui_str:
+                if show_gui_str.upper()=='Y':
+                    show_gui = True
+                if show_gui_str.upper()=='N':
+                    show_gui = False
+
+            noise_bounds_str = sinput('Bounds on noise plot: [default/last] | copy and edit | "auto"\nCurrent: '+str(noise_bounds)+'\n')
+
+            if noise_bounds_str:
+                try:
+                    noise_bounds=eval(noise_bounds_str)
+                except:
+                    pass
+
+        except (EOFError, KeyboardInterrupt):
+            logging.info('Goodbye!')
+            break
+
+        logging.info('name:%s, show_gui:%s, noise_bounds:%s' % (name, show_gui, noise_bounds))
+        for p in raw_paths:
+            if os.path.isfile(clean_path(p)):
+                run_analysis(clean_path(p), name, blackbox_decode, show_gui, noise_bounds)
+            else:
+                logging.info('No valid input path!')
+
+        if show_gui:
+            plt.show()
+        else:
+            plt.cla()
+            plt.clf()    
+
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         format='%(levelname)s %(asctime)s %(filename)s:%(lineno)s: %(message)s',
         level=logging.INFO)
 
+    logging.info(Version)
+
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-l', '--log', action='append',
-        help='BBL log file(s) to analyse. Omit for interactive prompt.')
+    #parser.add_argument(
+    #    '-l', '--log', action='append',
+    #    help='BBL log file(s) to analyse. Omit for interactive prompt.')
     parser.add_argument('-n', '--name', default='tmp', help='Plot name.')
 
     if os.name=='nt':
@@ -965,13 +1016,13 @@ if __name__ == "__main__":
     else:
         default_blackbox_decode='blackbox_decode'
 
-    parser.add_argument(
-        '--blackbox_decode',
-        default=default_blackbox_decode,
-        help='Path to blackbox_decode executable.')
+    parser.add_argument('--blackbox_decode', default=default_blackbox_decode, help='Path to blackbox_decode executable.')
 
-    parser.add_argument('-s', '--show', default='Y', help='Y = show plot window when done.\nN = Do not. \nDefault = Y')
+    parser.add_argument('-q', '--quiet', action="store_true", help="Do not show GUI windows, only generate pictures.")
+    parser.add_argument('-i', '--interactive', action="store_true", help="Enter log names interactively")
     parser.add_argument('-nb', '--noise_bounds', default='[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
+    parser.add_argument('files', nargs='*') #type=argparse.FileType('r'), 
+
     args = parser.parse_args()
 
     try:
@@ -995,55 +1046,23 @@ if __name__ == "__main__":
             % (blackbox_decode_path, str(e)))
 
     logging.info('Decoding with %r' % blackbox_decode_path)
+    if not args.interactive and not args.files:
+        parser.print_usage()
+        sys.exit(1)
 
-    logging.info(Version)
-    logging.info('Hello Pilot!')
+    show_gui = not args.quiet
 
-    if args.log:
-        for log_path in args.log:
-            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, args.show, args.noise_bounds)
-        if args.show.upper() == 'Y':
+    if args.interactive:
+        run_interactive(args.name, args.blackbox_decode, show_gui, args.noise_bounds)
+        sys.exit();
+
+    if args.files:
+        for log_path in args.files:
+            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, show_gui, args.noise_bounds)
+        if show_gui:
             plt.show()
         else:
             plt.cla()
             plt.clf()
+        sys.exit();
 
-
-    else:
-        while True:
-            logging.info('Interactive mode: Enter log file, or type close when done.')
-
-            try:
-                time.sleep(0.1)
-                raw_path = sinput('Blackbox log file path (type or drop here): ')
-
-                if raw_path == 'close':
-                    logging.info('Goodbye!')
-                    break
-
-                raw_paths = strip_quotes(raw_path).replace("''", '""').split('""')  # seperate multiple paths
-                name = sinput('Optional plot name:') or args.name
-                showplt = sinput('Show plot window when done? [Y]/N') or args.show
-                noise_bounds = sinput('Bounds on noise plot: [default/last] | copy and edit | "auto"\nCurrent: '+str(args.noise_bounds)+'\n') or args.noise_bounds
-
-                args.show = showplt.upper()
-                try:
-                    args.noise_bounds=eval(noise_bounds)
-
-                except:
-                    args.noise_bounds = noise_bounds
-
-            except (EOFError, KeyboardInterrupt):
-                logging.info('Goodbye!')
-                break
-
-            for p in raw_paths:
-                if os.path.isfile(clean_path(p)):
-                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds)
-                else:
-                    logging.info('No valid input path!')
-            if args.show == 'Y':
-                plt.show()
-            else:
-                plt.cla()
-                plt.clf()
