@@ -1054,7 +1054,7 @@ if __name__ == "__main__":
 
     if args.interactive:
         run_interactive(args.name, args.blackbox_decode, show_gui, args.noise_bounds)
-        sys.exit();
+        sys.exit()
 
     if args.files:
         for log_path in args.files:
@@ -1064,5 +1064,5 @@ if __name__ == "__main__":
         else:
             plt.cla()
             plt.clf()
-        sys.exit();
+        sys.exit()
 
