@@ -797,7 +797,10 @@ class BB_log:
     def _csv_iter(self, heads):
         figs = []
         for h in heads:
-            analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds)
+            try:
+                analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds)
+            except:
+                logging.error('_csv_iter: CSV_log failed %s-%d failed' % (h['tempFile'],h['logNum']), exc_info = True)
             #figs.append([analysed.fig_resp,analysed.fig_noise])
             if not self.show_gui:
                 plt.cla()
@@ -1063,7 +1066,10 @@ if __name__ == "__main__":
 
     if args.files:
         for log_path in args.files:
-            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, show_gui, args.noise_bounds)
+            try:
+                run_analysis(clean_path(log_path), args.name, args.blackbox_decode, show_gui, args.noise_bounds)
+            except Exception as e:
+                logging.error('run_analysis failed for %s' % log_path, exc_info=True)
         if show_gui:
             plt.show()
         else:
