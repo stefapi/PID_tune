@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import logging
+import logging.handlers
 import os
 import sys
 import subprocess
@@ -1002,6 +1003,10 @@ if __name__ == "__main__":
     logging.basicConfig(
         format='%(levelname)s %(asctime)s %(filename)s:%(lineno)s: %(message)s',
         level=logging.INFO)
+
+    handler = logging.handlers.RotatingFileHandler("PIDAnalyzer.log", mode='a', maxBytes=1048576, backupCount=1, encoding="utf8")
+    rootLogger = logging.getLogger()
+    rootLogger.addHandler(handler)
 
     logging.info(Version)
 
