@@ -348,10 +348,11 @@ class Trace:
 
 class CSV_log:
 
-    def __init__(self, fpath, name, headdict, noise_bounds):
+    def __init__(self, fpath, name, headdict, noise_bounds, use_motors_as_throttle):
         self.file = fpath
         self.name = name
         self.headdict = headdict
+        self.use_motors_as_throttle = use_motors_as_throttle
 
         self.data = self.readcsv(self.file)
 
@@ -688,12 +689,18 @@ class CSV_log:
                    'ugyroADC[0]', 'ugyroADC[1]', 'ugyroADC[2]',
                    #'accSmooth[0]','accSmooth[1]', 'accSmooth[2]',
                    'debug[0]', 'debug[1]', 'debug[2]','debug[3]',
-                   #'motor[0]', 'motor[1]', 'motor[2]', 'motor[3]',
+                   'motor[0]', 'motor[1]', 'motor[2]', 'motor[3]',
                    #'energyCumulative (mAh)','vbatLatest (V)', 'amperageLatest (A)'
                    ]
         data = read_csv(fpath, header=0, skipinitialspace=1, usecols=lambda k: k in wanted, dtype=np.float64)
         datdic.update({'time_us': data['time (us)'].values * 1e-6})
         datdic.update({'throttle': data['rcCommand[3]'].values})
+
+        if self.use_motors_as_throttle:
+            motormax = np.maximum(data['motor[0]'].values, data['motor[1]'].values)
+            motormax = np.maximum(motormax, data['motor[2]'].values)
+            motormax = np.maximum(motormax, data['motor[3]'].values)
+            datdic.update({'motormax': motormax})
 
         for i in ['0', '1', '2']:
             datdic.update({'rcCommand' + i: data['rcCommand['+i+']'].values})
@@ -738,9 +745,13 @@ class CSV_log:
 
     def find_traces(self, dat):
         time = self.data['time_us']
-        throttle = dat['throttle']
 
-        throt = ((throttle - 1000.) / (float(self.headdict['maxThrottle']) - 1000.)) * 100.
+        if self.use_motors_as_throttle:
+            motormax = dat['motormax']
+            throt = motormax / 20.
+        else:
+            throttle = dat['throttle']
+            throt = ((throttle - 1000.) / (float(self.headdict['maxThrottle']) - 1000.)) * 100.
 
         traces = [{'name':'roll'},{'name':'pitch'},{'name':'yaw'}]
 
@@ -769,7 +780,7 @@ class CSV_log:
 
 
 class BB_log:
-    def __init__(self, log_file_path, name, blackbox_decode, show_gui, noise_bounds):
+    def __init__(self, log_file_path, name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle):
         self.blackbox_decode_bin_path = blackbox_decode
         self.tmp_dir = os.path.join(os.path.dirname(log_file_path), name)
         if not os.path.isdir(self.tmp_dir):
@@ -777,6 +788,7 @@ class BB_log:
         self.name = name
         self.show_gui = show_gui
         self.noise_bounds = noise_bounds
+        self.use_motors_as_throttle = use_motors_as_throttle
 
         self.loglist = self.decode(log_file_path)
         self.heads = self.beheader(self.loglist)
@@ -798,7 +810,7 @@ class BB_log:
         figs = []
         for h in heads:
             try:
-                analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds)
+                analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds, self.use_motors_as_throttle)
             except:
                 logging.error('_csv_iter: CSV_log failed %s-%d failed' % (h['tempFile'],h['logNum']), exc_info = True)
             #figs.append([analysed.fig_resp,analysed.fig_noise])
@@ -940,8 +952,8 @@ class BB_log:
         return loglist
 
 
-def run_analysis(log_file_path, plot_name, blackbox_decode, show_gui, noise_bounds):
-    test = BB_log(log_file_path, plot_name, blackbox_decode, show_gui, noise_bounds)
+def run_analysis(log_file_path, plot_name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle):
+    test = BB_log(log_file_path, plot_name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle)
     logging.info('Analysis complete, showing plot. (Close plot to exit.)')
 
 
@@ -954,7 +966,7 @@ def clean_path(path):
     return os.path.abspath(os.path.expanduser(strip_quotes(path)))
 
 
-def run_interactive(name, blackbox_decode, show_gui, noise_bounds):
+def run_interactive(name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle):
     logging.info('Interactive mode: Enter log file, or type "close" when done.')
 
     while True:
@@ -990,7 +1002,7 @@ def run_interactive(name, blackbox_decode, show_gui, noise_bounds):
         logging.info('name:%s, show_gui:%s, noise_bounds:%s' % (name, show_gui, noise_bounds))
         for p in raw_paths:
             if os.path.isfile(clean_path(p)):
-                run_analysis(clean_path(p), name, blackbox_decode, show_gui, noise_bounds)
+                run_analysis(clean_path(p), name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle)
             else:
                 logging.info('No valid input path!')
 
@@ -1027,6 +1039,7 @@ if __name__ == "__main__":
     parser.add_argument('--blackbox_decode', default=default_blackbox_decode, help='Path to blackbox_decode executable.')
 
     parser.add_argument('-q', '--quiet', action="store_true", help="Do not show GUI windows, only generate pictures.")
+    parser.add_argument('-m', '--motors', action="store_true", help="Use motors max as throttle instead of rcCommand to analyze motor test bench logs.")
     parser.add_argument('-i', '--interactive', action="store_true", help="Enter log names interactively")
     parser.add_argument('-nb', '--noise_bounds', default='[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
     parser.add_argument('files', nargs='*') #type=argparse.FileType('r'), 
@@ -1061,13 +1074,13 @@ if __name__ == "__main__":
     show_gui = not args.quiet
 
     if args.interactive:
-        run_interactive(args.name, args.blackbox_decode, show_gui, args.noise_bounds)
+        run_interactive(args.name, args.blackbox_decode, show_gui, args.noise_bounds, args.motors)
         sys.exit()
 
     if args.files:
         for log_path in args.files:
             try:
-                run_analysis(clean_path(log_path), args.name, args.blackbox_decode, show_gui, args.noise_bounds)
+                run_analysis(clean_path(log_path), args.name, args.blackbox_decode, show_gui, args.noise_bounds, args.motors)
             except Exception as e:
                 logging.error('run_analysis failed for %s' % log_path, exc_info=True)
         if show_gui:
