@@ -14,7 +14,7 @@ from scipy.ndimage.filters import gaussian_filter1d
 import matplotlib.colors as colors
 from scipy.optimize import minimize, basinhopping
 from six.moves import input as sinput
-
+from sys import platform
 
 # ----------------------------------------------------------------------------------
 # "THE BEER-WARE LICENSE" (Revision 42):
@@ -959,10 +959,19 @@ if __name__ == "__main__":
         '-l', '--log', action='append',
         help='BBL log file(s) to analyse. Omit for interactive prompt.')
     parser.add_argument('-n', '--name', default='tmp', help='Plot name.')
+
+    if platform == "linux" or platform == "linux2":
+        # linux
+        blackbox_bin="blackbox_decode"
+    #elif platform == "darwin":
+        # OS X
+    elif platform == "win32":
+        blackbox_bin="Blackbox_decode.exe"
+
     parser.add_argument(
         '--blackbox_decode',
-        default=os.path.join(os.getcwd(), 'Blackbox_decode.exe'),
-        help='Path to Blackbox_decode.exe.')
+        default=os.path.join(os.getcwd(), blackbox_bin),
+        help='Path to ' + blackbox_bin)
     parser.add_argument('-s', '--show', default='Y', help='Y = show plot window when done.\nN = Do not. \nDefault = Y')
     parser.add_argument('-nb', '--noise_bounds', default='[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
     args = parser.parse_args()
@@ -975,7 +984,7 @@ if __name__ == "__main__":
         args.noise_bounds = args.noise_bounds
     if not os.path.isfile(blackbox_decode_path):
         parser.error(
-            ('Could not find Blackbox_decode.exe (used to generate CSVs from '
+            ('Could not find ' + blackbox_bin + ' (used to generate CSVs from '
              'your BBL file) at %s. You may need to install it from '
              'https://github.com/cleanflight/blackbox-tools/releases.')
             % blackbox_decode_path)
