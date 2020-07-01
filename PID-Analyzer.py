@@ -17,6 +17,7 @@ from six.moves import input as sinput
 import orangebox
 import csv
 
+from sys import platform
 
 # ----------------------------------------------------------------------------------
 # "THE BEER-WARE LICENSE" (Revision 42):
@@ -348,7 +349,7 @@ class Trace:
 
 class CSV_log:
 
-    def __init__(self, fpath, name, headdict, noise_bounds, noise_cmap):
+    def __init__(self, fpath, name, headdict, noise_bounds, noise_cmap, fig_resp, fig_noise):
         self.file = fpath
         self.name = name
         self.headdict = headdict
@@ -358,8 +359,12 @@ class CSV_log:
         logging.info('Processing:')
         self.traces = self.find_traces(self.data)
         self.roll, self.pitch, self.yaw = self.__analyze()
-        self.fig_resp = self.plot_all_resp([self.roll, self.pitch, self.yaw])
-        self.fig_noise = self.plot_all_noise([self.roll, self.pitch, self.yaw], noise_bounds, noise_cmap)
+
+        if fig_resp:
+            self.fig_resp = self.plot_all_resp([self.roll, self.pitch, self.yaw])
+
+        if fig_noise:
+            self.fig_noise = self.plot_all_noise([self.roll, self.pitch, self.yaw],noise_bounds)
 
     def check_lims_list(self,lims):
         if type(lims) is list:
@@ -624,6 +629,32 @@ class CSV_log:
                 plt.xlabel('throttle in %')
                 plt.xlim([0.,100.])
 
+            ##better PID labels including dmin and feedforward
+            dmins = self.headdict['d_min'].split(',')
+            ffwd = self.headdict['feedforward_weight'].split(',')
+            pid = self.headdict[tr.name + 'PID'].split(',')
+
+            if tr.name == 'roll':
+                axis = 0
+            elif tr.name == 'pitch':
+                axis = 1
+            else:
+                axis = 2
+
+            ##P and I
+            pid_label = [pid[0],pid[1]]
+
+            ##D
+            if len(dmins) == 3 and dmins[axis] != "0":
+                pid_label.append(dmins[axis]+'-'+pid[2])
+            else:
+                pid_label.append(pid[2])
+
+            #FF
+            if len(ffwd) == 3:
+                pid_label.append(ffwd[axis])
+
+            pid_label=",".join(pid_label)
 
             theCM = plt.cm.get_cmap('Blues')
             theCM._init()
@@ -633,7 +664,7 @@ class CSV_log:
             plt.contourf(*tr.resp_low[2], cmap=theCM, linestyles=None, antialiased=True, levels=np.linspace(0,1,20, dtype=np.float64))
             plt.plot(tr.time_resp, tr.resp_low[0],
                      label=tr.name + ' step response ' + '(<' + str(int(Trace.threshold)) + ') '
-                           + ' PID ' + self.headdict[tr.name + 'PID'])
+                           + ' PID ' + pid_label)
 
 
             if tr.high_mask.sum() > 0:
@@ -644,7 +675,7 @@ class CSV_log:
                 plt.contourf(*tr.resp_high[2], cmap=theCM, linestyles=None, antialiased=True, levels=np.linspace(0,1,20, dtype=np.float64))
                 plt.plot(tr.time_resp, tr.resp_high[0],
                      label=tr.name + ' step response ' + '(>' + str(int(Trace.threshold)) + ') '
-                           + ' PID ' + self.headdict[tr.name + 'PID'])
+                           + ' PID ' + pid_label)
             plt.xlim([-0.001,0.501])
 
 
@@ -775,7 +806,8 @@ class CSV_log:
 
 
 class BB_log:
-    def __init__(self, log_file_path, name, blackbox_decode, show, noise_bounds, noise_cmap):
+    def __init__(self, log_file_path, name, blackbox_decode, show, noise_bounds, noise_cmap, fig_resp, fig_noise):
+
         self.blackbox_decode_bin_path = blackbox_decode
         self.tmp_dir = os.path.join(os.path.dirname(log_file_path), name)
         if not os.path.isdir(self.tmp_dir):
@@ -784,6 +816,10 @@ class BB_log:
         self.show=show
         self.noise_bounds=noise_bounds
         self.noise_cmap=noise_cmap
+
+
+        self.fig_resp = fig_resp
+        self.fig_noise = fig_noise
 
         self.loglist = self.decode(log_file_path)
         self.heads = self.beheader(self.loglist)
@@ -804,7 +840,7 @@ class BB_log:
     def _csv_iter(self, heads):
         figs = []
         for h in heads:
-            analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds, self.noise_cmap)
+            analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds, self.noise_cmap, self.fig_resp, self.fig_noise)
             #figs.append([analysed.fig_resp,analysed.fig_noise])
             if self.show!='Y':
                 plt.cla()
@@ -850,7 +886,12 @@ class BB_log:
                          'yaw_lpf_hz':'',
                          'dterm_notch_hz':'',
                          'dterm_notch_cutoff':'',
-                         'debug_mode':''
+                         'debug_mode':'',
+                         'd_min':'',
+                         'd_min_gain':'',
+                         'd_min_advance':'',
+                         'feedforward_weight':'',
+                         'feedforward_transition':''
                          }
             ### different versions of fw have different names for the same thing.
             translate_dic={'dynThrPID:':'dynThrottle',
@@ -883,7 +924,12 @@ class BB_log:
                          'yaw_lpf_hz:':'yaw_lpf_hz',
                          'dterm_notch_hz:':'dterm_notch_hz',
                          'dterm_notch_cutoff:':'dterm_notch_cutoff',
-                         'debug_mode:':'debug_mode'
+                         'debug_mode:':'debug_mode',
+                         'd_min:':'d_min',
+                         'd_min_gain:':'d_min_gain',
+                         'd_min_advance:':'d_min_advance',
+                         'feedforward_weight':'feedforward_weight',
+                         'feedforward_transition':'feedforward_transition'
                          }
 
             headsdict['tempFile'] = bblog
@@ -953,8 +999,8 @@ class BB_log:
         return loglist
 
 
-def run_analysis(log_file_path, plot_name, blackbox_decode, show, noise_bounds, noise_cmap):
-    test = BB_log(log_file_path, plot_name, blackbox_decode, show, noise_bounds, noise_cmap)
+def run_analysis(log_file_path, plot_name, blackbox_decode, show, noise_bounds, noise_cmap, fig_resp, fig_noise):
+    test = BB_log(log_file_path, plot_name, blackbox_decode, show, noise_bounds, noise_cmap, fig_resp, fig_noise)
     logging.info('Analysis complete, showing plot. (Close plot to exit.)')
 
 
@@ -976,13 +1022,32 @@ if __name__ == "__main__":
     parser.add_argument(
         '-l', '--log', action='append',
         help='BBL log file(s) to analyse. Omit for interactive prompt.')
-    parser.add_argument('-n', '--name', default='tmp', help='Plot name.\nDefault = tmp')
+
+    #Name of folder and plot
+    parser.add_argument('-n', '--name', default='tmp', help='Plot name.')
+
+    ## Blackbox decode
+    if platform == "linux" or platform == "linux2":
+        # linux
+        blackbox_bin="blackbox_decode"
+    #elif platform == "darwin":
+        # OS X
+    elif platform == "win32":
+        blackbox_bin="Blackbox_decode.exe"
+
     parser.add_argument(
         '--blackbox_decode',
-        default=os.path.join(os.getcwd(), 'Blackbox_decode.exe'),
-        help='Path to Blackbox_decode.exe\nDefault = ./Blackbox_decode.exe')
-    parser.add_argument('-s', '--show', default='Y', help='Y = show plot window when done.\nN = Do not. \nDefault = Y')
-    parser.add_argument('-nb', '--noise_bounds', default='[[1.,20.],[1.,20.],[1.,20.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling.\nDefault = [[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
+        default=os.path.join(os.getcwd(), blackbox_bin),
+        help='Path to ' + blackbox_bin)
+
+    parser.add_argument('-nn', '--no_noise_plot', default=False, action="store_true", help='do not render noise plot')    
+    parser.add_argument('-nr', '--no_response_plot', default=False, action="store_true", help='do not render set response plot')    
+
+    #Show plots
+    parser.add_argument('-s', '--show', default='N', help='Y = show plot window when done.\nN = Do not. \nDefault = N')
+
+    #Noise Bounds
+    parser.add_argument('-nb', '--noise_bounds', default='[[1.,20.1],[1.,20.],[1.,20.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,20.1],[1.,20.],[1.,20.],[0.,4.]]')
     parser.add_argument('-nc', '--noise_cmap', default='viridis', help='Noise plots color map, see "images" dir for vaild values\nhttps://matplotlib.org/3.1.0/tutorials/colors/colormaps.html\nDefault = viridis')
     args = parser.parse_args()
 
@@ -994,8 +1059,8 @@ if __name__ == "__main__":
         args.noise_bounds = args.noise_bounds
     if not os.path.isfile(blackbox_decode_path):
         logging.warning(
-            ('Could not find Blackbox_decode.exe (used to generate CSVs from '
-             'your BBL file) at %s. You may want to install it from '
+            ('Could not find ' + blackbox_bin + ' (used to generate CSVs from '
+             'your BBL file) at %s. You may need to install it from '
              'https://github.com/cleanflight/blackbox-tools/releases.')
             % blackbox_decode_path)
         logging.info('Decoding with orangebox')
@@ -1007,7 +1072,7 @@ if __name__ == "__main__":
 
     if args.log:
         for log_path in args.log:
-            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap)
+            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap, args.no_response_plot!=True, args.no_noise_plot!=True)
         if args.show.upper() == 'Y':
             plt.show()
         else:
@@ -1045,7 +1110,7 @@ if __name__ == "__main__":
 
             for p in raw_paths:
                 if os.path.isfile(clean_path(p)):
-                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap)
+                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap, args.no_response_plot!=True, args.no_noise_plot!=True)
                 else:
                     logging.info('No valid input path!')
             if args.show == 'Y':
