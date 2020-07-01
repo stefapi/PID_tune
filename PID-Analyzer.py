@@ -14,6 +14,8 @@ from scipy.ndimage.filters import gaussian_filter1d
 import matplotlib.colors as colors
 from scipy.optimize import minimize, basinhopping
 from six.moves import input as sinput
+import orangebox
+import csv
 
 
 # ----------------------------------------------------------------------------------
@@ -54,7 +56,7 @@ class Trace:
 
         self.gyro = self.data['gyro']
         self.throttle = self.data['throttle']
-        self.throt_hist, self.throt_scale = np.histogram(self.throttle, np.linspace(0, 100, 101, dtype=np.float64), normed=True)
+        self.throt_hist, self.throt_scale = np.histogram(self.throttle, np.linspace(0, 100, 101, dtype=np.float64), density=True)
 
         self.flen = self.stepcalc(self.time, Trace.framelen)        # array len corresponding to framelen in s
         self.rlen = self.stepcalc(self.time, Trace.resplen)         # array len corresponding to resplen in s
@@ -291,7 +293,7 @@ class Trace:
         weights = abs(spec.real)
         avr_thr = np.abs(thr).max(axis=1)
 
-        hist2d=self.hist2d(avr_thr, freq,weights,[101,len(freq)/4])
+        hist2d=self.hist2d(avr_thr, freq,weights,[101,len(freq)//4])
 
         filt_width = 3  # width of gaussian smoothing for hist data
         hist2d_sm = gaussian_filter1d(hist2d['hist2d_norm'], filt_width, axis=1, mode='constant')
@@ -346,7 +348,7 @@ class Trace:
 
 class CSV_log:
 
-    def __init__(self, fpath, name, headdict, noise_bounds):
+    def __init__(self, fpath, name, headdict, noise_bounds, noise_cmap):
         self.file = fpath
         self.name = name
         self.headdict = headdict
@@ -357,7 +359,7 @@ class CSV_log:
         self.traces = self.find_traces(self.data)
         self.roll, self.pitch, self.yaw = self.__analyze()
         self.fig_resp = self.plot_all_resp([self.roll, self.pitch, self.yaw])
-        self.fig_noise = self.plot_all_noise([self.roll, self.pitch, self.yaw],noise_bounds)
+        self.fig_noise = self.plot_all_noise([self.roll, self.pitch, self.yaw], noise_bounds, noise_cmap)
 
     def check_lims_list(self,lims):
         if type(lims) is list:
@@ -370,7 +372,7 @@ class CSV_log:
             logging.info('noise_bounds is no valid list')
             return False
 
-    def plot_all_noise(self, traces, lims): #style='fancy' gives 2d hist for response
+    def plot_all_noise(self, traces, lims, cmap='viridis'): #style='fancy' gives 2d hist for response
         textsize = 7
         rcParams.update({'font.size': 9})
 
@@ -391,7 +393,7 @@ class CSV_log:
         meanspec_max = np.max(meanspec*mask[:-1])
 
         if not self.check_lims_list(lims):
-            lims=np.array([[1,max_noise_gyro],[1, max_noise_debug], [1, max_noise_d], [0,meanspec_max*1.5]])
+            lims=np.array([[1, 20],[1, 20], [1, 20], [0,meanspec_max*1.5]])
             if lims[0,1] == 1:
                 lims[0,1]=100.
             if lims[1, 1] == 1:
@@ -404,7 +406,6 @@ class CSV_log:
         cax_gyro = plt.subplot(gs1[0, 0:7])
         cax_debug = plt.subplot(gs1[0, 8:15])
         cax_d = plt.subplot(gs1[0, 16:23])
-        cmap='viridis'
 
         axes_gyro = []
         axes_debug = []
@@ -466,7 +467,11 @@ class CSV_log:
                                                       '- all filters: set debug_mode = NOTCH\n'
                                                       '- LPF only: set debug_mode = GYRO', horizontalalignment='center', verticalalignment = 'center',
                                                       transform = ax1.transAxes,fontdict={'color': 'white'})
-
+            if correctdebugmode == False:
+                ax1.text(0.5, 0.5, 'warning: debug does not contain prefiltered gyro\n'
+                                                      'set debug_mode = GYRO_SCALED', horizontalalignment='center', verticalalignment = 'center',
+                                                      transform = ax1.transAxes,fontdict={'color': 'white'})
+            
             if i<2:
                 # dterm plots
                 ax2 = plt.subplot(gs1[1 + i * 8:1 + i * 8 + 8, 16:23])
@@ -675,8 +680,9 @@ class CSV_log:
     def readcsv(self, fpath):
         logging.info('Reading: Log '+str(self.headdict['logNum']))
         datdic = {}
+        global correctdebugmode
         ### keycheck for 'usecols' only reads usefull traces, uncommend if needed
-        wanted =  ['time (us)',
+        wanted =  ['time (us)','time',
                    'rcCommand[0]', 'rcCommand[1]', 'rcCommand[2]', 'rcCommand[3]',
                    'axisP[0]','axisP[1]','axisP[2]',
                    'axisI[0]', 'axisI[1]', 'axisI[2]',
@@ -690,9 +696,11 @@ class CSV_log:
                    #'energyCumulative (mAh)','vbatLatest (V)', 'amperageLatest (A)'
                    ]
         data = read_csv(fpath, header=0, skipinitialspace=1, usecols=lambda k: k in wanted, dtype=np.float64)
-        datdic.update({'time_us': data['time (us)'].values * 1e-6})
+        datdic.update({'time_us': data['time (us)'].values * 1e-6 if 'time (us)' in data.columns else data['time'].values * 1e-6})
         datdic.update({'throttle': data['rcCommand[3]'].values})
 
+        correctdebugmode = not np.any(data['debug[3]']) # if debug[3] contains data, debug_mode is not correct for plotting
+        
         for i in ['0', '1', '2']:
             datdic.update({'rcCommand' + i: data['rcCommand['+i+']'].values})
             #datdic.update({'PID loop in' + i: data['axisP[' + i + ']'].values})
@@ -767,7 +775,7 @@ class CSV_log:
 
 
 class BB_log:
-    def __init__(self, log_file_path, name, blackbox_decode, show, noise_bounds):
+    def __init__(self, log_file_path, name, blackbox_decode, show, noise_bounds, noise_cmap):
         self.blackbox_decode_bin_path = blackbox_decode
         self.tmp_dir = os.path.join(os.path.dirname(log_file_path), name)
         if not os.path.isdir(self.tmp_dir):
@@ -775,6 +783,7 @@ class BB_log:
         self.name = name
         self.show=show
         self.noise_bounds=noise_bounds
+        self.noise_cmap=noise_cmap
 
         self.loglist = self.decode(log_file_path)
         self.heads = self.beheader(self.loglist)
@@ -795,7 +804,7 @@ class BB_log:
     def _csv_iter(self, heads):
         figs = []
         for h in heads:
-            analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds)
+            analysed = CSV_log(h['tempFile'][:-3]+'01.csv', self.name, h, self.noise_bounds, self.noise_cmap)
             #figs.append([analysed.fig_resp,analysed.fig_noise])
             if self.show!='Y':
                 plt.cla()
@@ -921,7 +930,16 @@ class BB_log:
             size_bytes = os.path.getsize(os.path.join(self.tmp_dir, bbl_session))
             if size_bytes > LOG_MIN_BYTES:
                 try:
-                    msg = subprocess.check_call([self.blackbox_decode_bin_path, bbl_session])
+                    if os.path.isfile(self.blackbox_decode_bin_path):
+                        msg = subprocess.check_call([self.blackbox_decode_bin_path, bbl_session])
+                    else:
+                        output = open(bbl_session[:-3]+'01.csv', "w")
+                        parser = orangebox.Parser.load(bbl_session)
+                        with output as f:
+                            writer = csv.writer(f)
+                            writer.writerow(parser.field_names)
+                            for frame in parser.frames():
+                                writer.writerow(frame.data)
                     loglist.append(bbl_session)
                 except:
                     logging.error(
@@ -935,8 +953,8 @@ class BB_log:
         return loglist
 
 
-def run_analysis(log_file_path, plot_name, blackbox_decode, show, noise_bounds):
-    test = BB_log(log_file_path, plot_name, blackbox_decode, show, noise_bounds)
+def run_analysis(log_file_path, plot_name, blackbox_decode, show, noise_bounds, noise_cmap):
+    test = BB_log(log_file_path, plot_name, blackbox_decode, show, noise_bounds, noise_cmap)
     logging.info('Analysis complete, showing plot. (Close plot to exit.)')
 
 
@@ -954,17 +972,18 @@ if __name__ == "__main__":
         format='%(levelname)s %(asctime)s %(filename)s:%(lineno)s: %(message)s',
         level=logging.INFO)
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
         '-l', '--log', action='append',
         help='BBL log file(s) to analyse. Omit for interactive prompt.')
-    parser.add_argument('-n', '--name', default='tmp', help='Plot name.')
+    parser.add_argument('-n', '--name', default='tmp', help='Plot name.\nDefault = tmp')
     parser.add_argument(
         '--blackbox_decode',
         default=os.path.join(os.getcwd(), 'Blackbox_decode.exe'),
-        help='Path to Blackbox_decode.exe.')
+        help='Path to Blackbox_decode.exe\nDefault = ./Blackbox_decode.exe')
     parser.add_argument('-s', '--show', default='Y', help='Y = show plot window when done.\nN = Do not. \nDefault = Y')
-    parser.add_argument('-nb', '--noise_bounds', default='[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling. \n default=[[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
+    parser.add_argument('-nb', '--noise_bounds', default='[[1.,20.],[1.,20.],[1.,20.],[0.,4.]]', help='bounds of plots in noise analysis. use "auto" for autoscaling.\nDefault = [[1.,10.1],[1.,100.],[1.,100.],[0.,4.]]')
+    parser.add_argument('-nc', '--noise_cmap', default='viridis', help='Noise plots color map, see "images" dir for vaild values\nhttps://matplotlib.org/3.1.0/tutorials/colors/colormaps.html\nDefault = viridis')
     args = parser.parse_args()
 
     blackbox_decode_path = clean_path(args.blackbox_decode)
@@ -974,19 +993,21 @@ if __name__ == "__main__":
     except:
         args.noise_bounds = args.noise_bounds
     if not os.path.isfile(blackbox_decode_path):
-        parser.error(
+        logging.warning(
             ('Could not find Blackbox_decode.exe (used to generate CSVs from '
-             'your BBL file) at %s. You may need to install it from '
+             'your BBL file) at %s. You may want to install it from '
              'https://github.com/cleanflight/blackbox-tools/releases.')
             % blackbox_decode_path)
-    logging.info('Decoding with %r' % blackbox_decode_path)
+        logging.info('Decoding with orangebox')
+    else:
+        logging.info('Decoding with %r' % blackbox_decode_path)
 
     logging.info(Version)
     logging.info('Hello Pilot!')
 
     if args.log:
         for log_path in args.log:
-            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, args.show, args.noise_bounds)
+            run_analysis(clean_path(log_path), args.name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap)
         if args.show.upper() == 'Y':
             plt.show()
         else:
@@ -1024,7 +1045,7 @@ if __name__ == "__main__":
 
             for p in raw_paths:
                 if os.path.isfile(clean_path(p)):
-                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds)
+                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap)
                 else:
                     logging.info('No valid input path!')
             if args.show == 'Y':
