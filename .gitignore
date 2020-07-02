@@ -1,1 +1,6 @@
 .venv
+tmp
+*.bbl
+*.csv
+*.ignore
+*.log
