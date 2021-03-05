@@ -1,0 +1,54 @@
+== Installation
+
+
+=== Stable release
+
+very simple:
+
+```
+sudo apt-get install python3-pip
+sudo pip3 install pid_tune
+```
+
+If you don't have `pip` installed, this `Python installation guide` can guide
+you through the process.
+
+https://pip.pypa.io[Pip]
+
+http://docs.python-guide.org/en/latest/starting/installation/[Python installation guide]
+
+=== From sources
+
+The sources for pid_tune can be downloaded from the `Github repo`.
+
+You can either clone the public repository:
+
+[source,shell script]
+----
+    $ git clone git://github.com/apiou/pid_tune
+----
+
+Or download the `tarball`:
+
+[source,shell script]
+----
+    $ curl  -OL https://github.com/apiou/pid_tune/tarball/master
+----
+
+Once you have a copy of the source, to install required Python libraries, view the list of packages in `pipfile` or `requirements.txt` or simply run:
+
+```
+sudo apt-get install python3-pip
+sudo pip3 install -r requirements.txt
+```
+
+if you prefer to use pipenv
+
+```
+pipenv install
+pipenv run python ./start.py
+```
+
+https://github.com/apiou/pid_tune[Github repo]
+
+https://github.com/apiou/pid_tune/tarball/master[Tarball]

@@ -1,0 +1,32 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+bumpversion = "*"
+coverage = "*"
+wheel = "*"
+sphinx = "*"
+twine = "*"
+tox = "*"
+flake8 = "*"
+pylint = "*"
+pytest = "*"
+isort = "*"
+yapf = "*"
+task= "*"
+pathlib2 = "*"
+nuitka = "*"
+jinja2="*"
+
+[packages]
+wheel = "*"
+numpy = "*"
+scipy = "*"
+pandas = "*"
+matplotlib = "*"
+six = "*"
+
+[requires]
+python_version = "3.6"

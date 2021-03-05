@@ -1,0 +1,18 @@
+= Welcome to remote_shell_expect's documentation!
+Stephane Apiou
+:toc:
+
+:leveloffset: 1
+include::readme.adoc[]
+:leveloffset: 0
+
+include::installation.adoc[]
+
+include::usage.adoc[]
+
+include::contributing.adoc[]
+
+include::authors.adoc[]
+
+include::history.adoc[]
+
