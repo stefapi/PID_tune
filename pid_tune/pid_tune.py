@@ -479,7 +479,7 @@ class CSV_log:
                 ax1.text(0.5, 0.5, 'warning: debug does not contain prefiltered gyro\n'
                                                       'set debug_mode = GYRO_SCALED', horizontalalignment='center', verticalalignment = 'center',
                                                       transform = ax1.transAxes,fontdict={'color': 'white'})
-            
+
             if i<2:
                 # dterm plots
                 ax2 = plt.subplot(gs1[1 + i * 8:1 + i * 8 + 8, 16:23])
@@ -734,7 +734,7 @@ class CSV_log:
         datdic.update({'throttle': data['rcCommand[3]'].values})
 
         correctdebugmode = not np.any(data['debug[3]']) # if debug[3] contains data, debug_mode is not correct for plotting
-        
+
         if self.use_motors_as_throttle:
             motormax = np.maximum(data['motor[0]'].values, data['motor[1]'].values)
             motormax = np.maximum(motormax, data['motor[2]'].values)
@@ -1074,11 +1074,10 @@ def run_interactive(name, blackbox_decode, show_gui, noise_bounds, use_motors_as
             plt.show()
         else:
             plt.cla()
-            plt.clf()    
+            plt.clf()
 
 
-
-if __name__ == "__main__":
+def main():
     logging.basicConfig(
         format='%(levelname)s %(asctime)s %(filename)s:%(lineno)s: %(message)s',
         level=logging.INFO)
@@ -1110,12 +1109,12 @@ if __name__ == "__main__":
         '--blackbox_decode',
         default=os.path.join(os.getcwd(), blackbox_bin),
         help='Path to ' + blackbox_bin)
-        
+
     parser.add_argument('-q', '--quiet', action="store_true", help="Do not show GUI windows, only generate pictures.")
     parser.add_argument('-m', '--motors', action="store_true", help="Use motors max as throttle instead of rcCommand to analyze motor test bench logs.")
     parser.add_argument('-i', '--interactive', action="store_true", help="Enter log names interactively")
-    parser.add_argument('-nn', '--no_noise_plot', default=False, action="store_true", help='do not render noise plot')    
-    parser.add_argument('-nr', '--no_response_plot', default=False, action="store_true", help='do not render set response plot')    
+    parser.add_argument('-nn', '--no_noise_plot', default=False, action="store_true", help='do not render noise plot')
+    parser.add_argument('-nr', '--no_response_plot', default=False, action="store_true", help='do not render set response plot')
 
     #Show plots
     parser.add_argument('-s', '--show', default='N', help='Y = show plot window when done.\nN = Do not. \nDefault = N')
@@ -1126,11 +1125,11 @@ if __name__ == "__main__":
     parser.add_argument('files', nargs='*') #type=argparse.FileType('r'),
 
     args = parser.parse_args()
-    
+
     blackbox_decode_path = clean_path(args.blackbox_decode)
     try:
         args.noise_bounds = eval(args.noise_bounds)
-        
+
     except:
         args.noise_bounds = args.noise_bounds
 

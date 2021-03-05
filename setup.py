@@ -72,7 +72,7 @@ with open(os.path.join(PROJECT_ROOT, "README.md"), "r", encoding="utf8") as file
     License = doc['License'][0]
 
 _version_re = re.compile(r"VERSION\s*=\s*[\'\"](?P<version>.*)[\'\"]")
-with open(os.path.join(PROJECT_ROOT, 'vagrant_debian', '__init__.py'), "r", encoding="utf8") as f:
+with open(os.path.join(PROJECT_ROOT, 'pid_tune', '__init__.py'), "r", encoding="utf8") as f:
     match = _version_re.search(f.read())
     Version = match.group("version") if match is not None else '"unknown"'
 
