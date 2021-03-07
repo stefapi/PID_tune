@@ -1,4 +1,29 @@
 #!/usr/bin/env python
+
+#   Copyright (c) 2021  stef
+#  BSD Simplified License
+#
+#   Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+#   following conditions are met:
+#   1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
+#   disclaimer.
+#   2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the
+#   following disclaimer in the documentation and/or other materials provided with the distribution.
+#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+#   INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+#   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+#   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+#   SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+#   WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+#   USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# ----------------------------------------------------------------------------------
+# "THE BEER-WARE LICENSE" (Revision 42):
+# <florian.melsheimer@gmx.de> wrote this file. As long as you retain this notice you
+# can do whatever you want with this stuff. If we meet some day, and you think
+# this stuff is worth it, you can buy me a beer in return. Florian Melsheimer
+# ----------------------------------------------------------------------------------
+
 import argparse
 import logging
 import logging.handlers
@@ -16,17 +41,9 @@ from scipy.ndimage.filters import gaussian_filter1d
 import matplotlib.colors as colors
 from scipy.optimize import minimize, basinhopping
 from six.moves import input as sinput
-import orangebox
 import csv
-
 from sys import platform
-
-# ----------------------------------------------------------------------------------
-# "THE BEER-WARE LICENSE" (Revision 42):
-# <florian.melsheimer@gmx.de> wrote this file. As long as you retain this notice you
-# can do whatever you want with this stuff. If we meet some day, and you think
-# this stuff is worth it, you can buy me a beer in return. Florian Melsheimer
-# ----------------------------------------------------------------------------------
+from pid_tune.orangebox import Parser
 
 
 Version = 'PID-Analyzer 0.52'
@@ -997,7 +1014,7 @@ class BB_log:
                         msg = subprocess.check_call([self.blackbox_decode_bin_path, bbl_session])
                     else:
                         output = open(bbl_session[:-3]+'01.csv', "w")
-                        parser = orangebox.Parser.load(bbl_session)
+                        parser = Parser.load(bbl_session)
                         with output as f:
                             writer = csv.writer(f)
                             writer.writerow(parser.field_names)
@@ -1030,9 +1047,8 @@ def clean_path(path):
     return os.path.abspath(os.path.expanduser(strip_quotes(path)))
 
 
-def run_interactive(name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle):
+def run_interactive(name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle, noise_cmap, fig_resp, fig_noise):
     logging.info('Interactive mode: Enter log file, or type "close" when done.')
-
     while True:
         try:
             time.sleep(0.1)
@@ -1066,7 +1082,7 @@ def run_interactive(name, blackbox_decode, show_gui, noise_bounds, use_motors_as
         logging.info('name:%s, show_gui:%s, noise_bounds:%s' % (name, show_gui, noise_bounds))
         for p in raw_paths:
             if os.path.isfile(clean_path(p)):
-                run_analysis(clean_path(p), name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle)
+                run_analysis(clean_path(p), name, blackbox_decode, show_gui, noise_bounds, use_motors_as_throttle, noise_cmap, fig_resp, fig_noise)
             else:
                 logging.info('No valid input path!')
 
@@ -1151,13 +1167,13 @@ def main():
     show_gui = not args.quiet
 
     if args.interactive:
-        run_interactive(args.name, args.blackbox_decode, show_gui, args.noise_bounds, args.motors)
+        run_interactive(args.name, args.blackbox_decode, show_gui, args.noise_bounds, args.motors, args.noise_cmap, args.no_response_plot != True, args.no_noise_plot != True)
         sys.exit()
 
     if args.files:
         for log_path in args.files:
             try:
-                run_analysis(clean_path(log_path), args.name, args.blackbox_decode, show_gui, args.noise_bounds, args.motors)
+                run_analysis(clean_path(log_path), args.name, args.blackbox_decode, args.show, args.noise_bounds, args.motors, args.noise_cmap, args.no_response_plot != True, args.no_noise_plot != True)
             except Exception as e:
                 logging.error('run_analysis failed for %s' % log_path, exc_info=True)
         if show_gui:
@@ -1197,7 +1213,7 @@ def main():
 
             for p in raw_paths:
                 if os.path.isfile(clean_path(p)):
-                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds, args.noise_cmap, args.no_response_plot!=True, args.no_noise_plot!=True)
+                    run_analysis(clean_path(p), name, args.blackbox_decode, args.show, args.noise_bounds, args.motors, args.noise_cmap, args.no_response_plot!=True, args.no_noise_plot!=True)
                 else:
                     logging.info('No valid input path!')
             if args.show == 'Y':
