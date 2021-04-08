@@ -5,13 +5,15 @@ import shlex
 import sys
 from distutils.dep_util import newer
 from shutil import which
+from cx_Freeze import setup, Executable
 
 import jinja2
-import setuptools
+#import setuptools
+from setuptools import Command, find_packages
 
 PO_FILES = 'po/*/messages.po'
 
-class CleanCommand(setuptools.Command):
+class CleanCommand(Command):
     """
     Custom clean command to tidy up the project root, because even
         python setup.py clean --all
@@ -61,7 +63,7 @@ with open(os.path.join(PROJECT_ROOT, "README.md"), "r", encoding="utf8") as file
         else:
             doc[title] = doc[title] + lines
     Summary = doc['Summary'][0]
-    Long_desc = '\n'.join(doc['Intro'])
+    Long_desc = '\n'.join(doc['Introduction'])
     Website = doc['Website'][0].strip()
     Copyright = doc['Copyright'][0].strip()
     s = re.search('^([^\<]*)\<([^\>]*)\>$', doc['Authors'][0])
@@ -71,7 +73,7 @@ with open(os.path.join(PROJECT_ROOT, "README.md"), "r", encoding="utf8") as file
         Mail = Mail.replace(" dot ", ".").replace(" at ", "@").replace(" ", "")
     License = doc['License'][0]
 
-_version_re = re.compile(r"VERSION\s*=\s*[\'\"](?P<version>.*)[\'\"]")
+_version_re = re.compile(r"__version__\s*=\s*[\'\"](?P<version>.*)[\'\"]")
 with open(os.path.join(PROJECT_ROOT, 'pid_tune', '__init__.py'), "r", encoding="utf8") as f:
     match = _version_re.search(f.read())
     Version = match.group("version") if match is not None else '"unknown"'
@@ -79,6 +81,8 @@ with open(os.path.join(PROJECT_ROOT, 'pid_tune', '__init__.py'), "r", encoding="
 def generate_translation_files():
     lang_files = []
 
+    if not os.path.exists('po'):
+        return []
     langs = (os.path.splitext(l)[0]
              for l in os.listdir('po')
              if l.endswith('po') and l != "messages.po")
@@ -132,7 +136,19 @@ def generate_doc_file():
 data_files= [
 ] + generate_translation_files()
 
-setuptools.setup(
+build_options = {'packages': [], 'excludes': []}
+
+base = 'Win32GUI' if sys.platform=='win32' else None
+
+#executables = [
+#    Executable('start.py', base=base, target_name = 'pid_tune')
+#]
+
+executables = [
+    Executable('start.py', base=base)
+]
+
+setup(
     name=Package_name,
     version=Version,
     python_requires=">=3.6.0",
@@ -170,8 +186,10 @@ setuptools.setup(
             'pid_tune = pid_tune.pid_tune:main'
         ]
     },
-    packages=setuptools.find_packages(),
+    packages=find_packages(),
     data_files = data_files,
     include_package_data=True,
+    options = {'build_exe': build_options},
+    executables = executables
 )
 

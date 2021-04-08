@@ -17,7 +17,7 @@
 from struct import pack, unpack
 from typing import Any, Callable, Union
 
-from pid_tune.orangebox.types import Number
+from .types import Number
 
 
 def map_to(key: Any, amap: dict) -> Callable:
