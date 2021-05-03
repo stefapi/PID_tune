@@ -6,7 +6,9 @@ This program reads Betaflight blackbox logs and calculates the PID step response
 
 The step response is a characteristic measure for PID performance and often referred to in tuning techniques.
 For more details read: https://en.wikipedia.org/wiki/PID_controller#Manual_tuning
-The program is Python based but utilizes Blackbox_decode.exe from blackbox_tools (https://github.com/cleanflight/blackbox-tools) to read logfiles.
+The program is Python based and use only Orangebox library to decode the blackbox. Blackbox_decode.exe is no more necessary here !
+
+Tested with betaflight 4.2.8
 
 As an example:
 This was the BF 3.15 stock tune (including D Setpoint weight) on my 2.5" CS110:

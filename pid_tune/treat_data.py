@@ -20,7 +20,9 @@ import logging
 import numpy as np
 from matplotlib import rcParams, pyplot as plt, colors as colors
 from matplotlib.gridspec import GridSpec
-
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib
+matplotlib.use('Agg')
 from pid_tune import __version__
 from pid_tune.trace import Trace
 
@@ -251,8 +253,8 @@ class treat_data:
         ax5l.text(0, 0, filt_settings_l, ha='left', fontsize=textsize)
         ax5r.text(0, 0, filt_settings_r, ha='left', fontsize=textsize)
 
-        logging.info('Saving as image...')
-        plt.savefig(self.head['tempFile'][:-9] + self.name + '_' + str(self.head['logNum'])+'_noise.png')
+        #logging.info('Saving as image...')
+        #plt.savefig(self.head['tempFile'][:-9] + self.name + '_' + str(self.head['logNum'])+'_noise.png')
         return fig
 
 
@@ -377,8 +379,8 @@ class treat_data:
 
         plt.text(0, 0, t, ha='left', va='center', rotation=90, color='grey', alpha=0.5, fontsize=textsize)
         ax4.axis('off')
-        logging.info('Saving as image...')
-        plt.savefig(self.head['tempFile'][:-9] + self.name + '_' + str(self.head['logNum'])+'_response.png')
+        #logging.info('Saving as image...')
+        #plt.savefig(self.head['tempFile'][:-9] + self.name + '_' + str(self.head['logNum'])+'_response.png')
         return fig
 
     def __analyze(self):

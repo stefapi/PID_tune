@@ -36,18 +36,28 @@ from six.moves import input as sinput
 from pid_tune.blackbox_log import blackbox_log
 from pid_tune import __version__
 from pid_tune.treat_data import treat_data
+from matplotlib.ticker import NullFormatter  # useful for `logit` scale
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import PySimpleGUI as sg
+import matplotlib
+matplotlib.use('TkAgg')
+
 
 Version = 'pid_tune ' + __version__
 
 
 def run_analysis(log_file_path, plot_name, noise_bounds, use_motors_as_throttle, noise_cmap, fig_resp, fig_noise):
     logs = blackbox_log(log_file_path, plot_name, use_motors_as_throttle)
+    analysed = None
     for head, data in zip(logs.heads, logs.datas):
         try:
             analysed = treat_data(head, data, plot_name, logs.correctdebugmode, noise_bounds, use_motors_as_throttle, noise_cmap, fig_resp, fig_noise)
         except:
-            logging.error('_csv_iter: CSV_log failed %s-%s failed' % (head['tempFile'], head['logNum']), exc_info=True)
+            logging.error('treat_data: decode failed %s-%s failed' % (head['tempFile'], head['logNum']), exc_info=True)
     logging.info('Analysis complete, showing plot. (Close plot to exit.)')
+    return analysed
 
 
 def strip_quotes(filepath):
@@ -58,46 +68,99 @@ def strip_quotes(filepath):
 def clean_path(path):
     return os.path.abspath(os.path.expanduser(strip_quotes(path)))
 
+def draw_figure(canvas, figure):
+    figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
+    figure_canvas_agg.draw()
+    figure_canvas_agg.get_tk_widget().pack(side='top', fill='both', expand=1)
+    return figure_canvas_agg
 
-def run_interactive(show_gui, noise_bounds, use_motors_as_throttle, noise_cmap, fig_resp, fig_noise):
+def run_interactive(files, name, show_gui, noise_bounds, use_motors_as_throttle, noise_cmap, fig_resp, fig_noise):
     logging.info('Interactive mode: Enter log file, or type "close" when done.')
+    if files is None:
+        files = []
+    raw_path = None
+    if show_gui:
+        # define the window layout
+        layout = [[sg.TabGroup([[
+                    sg.Tab('PID Graph', [[sg.Canvas(key='-IMGPID-')]]),
+                    sg.Tab('Noise Graph', [[sg.Canvas(key='-IMGNOISE-')]])
+                    ]])],
+                  [sg.Button('Close'), sg.Button('Save'), sg.Button('New File')]]
+
+        # create the form and show it without the plot
+        window = sg.Window('Demo Application - Embedding Matplotlib In PySimpleGUI', layout, finalize=True, element_justification='center', font='Helvetica 18')
+        window.refresh()
+
     while True:
-        try:
-            time.sleep(0.1)
-            raw_path = sinput('Blackbox log file path (type or drop here). Type "close" to end: ')
+        time.sleep(0.1)
+        if not files: # try to get from UI some files
+                if show_gui:
+                    text = sg.popup_get_file('Please select your logfile to read', file_types=(("BBL", "*.BBL"), ("BFL", "*.BFL")),initial_folder=None if raw_path is None else os.path.dirname(raw_path))
+                    if text is not None and text != "":
+                        files.append(text)
+                else:
+                    try:
+                        text= sinput('Blackbox log file path (type or drop here). Type "close" to end: ')
+                        if text == 'close':
+                            logging.info('Goodbye!')
+                            break
+                        files.append(text)
+                    except (EOFError, KeyboardInterrupt):
+                        logging.info('Goodbye!')
+                        break
+                    noise_bounds_str = sinput('Bounds on noise plot: [default/last] | copy and edit | "auto"\nCurrent: '+str(noise_bounds)+'\n')
+                    if noise_bounds_str:
+                        try:
+                            noise_bounds=eval(noise_bounds_str)
+                        except:
+                            pass
 
-            if raw_path == 'close':
-                logging.info('Goodbye!')
-                break
+        if not files:
+            break;
 
-            raw_paths = strip_quotes(raw_path).replace("''", '""').split('""')  # seperate multiple paths
-            name = sinput('plot name:')
-
-            noise_bounds_str = sinput('Bounds on noise plot: [default/last] | copy and edit | "auto"\nCurrent: '+str(noise_bounds)+'\n')
-
-            if noise_bounds_str:
-                try:
-                    noise_bounds=eval(noise_bounds_str)
-                except:
-                    pass
-
-        except (EOFError, KeyboardInterrupt):
-            logging.info('Goodbye!')
-            break
-
+        raw_path = clean_path(files.pop())
         logging.info('name:%s, show_gui:%s, noise_bounds:%s' % (name, show_gui, noise_bounds))
-        for p in raw_paths:
-            if os.path.isfile(clean_path(p)):
-                run_analysis(clean_path(p), name, noise_bounds, use_motors_as_throttle, noise_cmap, fig_resp, fig_noise)
-            else:
-                logging.info('No valid input path!')
 
-        if show_gui:
-            plt.show()
+        if os.path.isfile(raw_path):
+            analysed = run_analysis(raw_path, name, noise_bounds, use_motors_as_throttle, noise_cmap, fig_resp, fig_noise)
         else:
-            plt.cla()
-            plt.clf()
+            logging.info('No valid input path!')
+        if analysed is None:
+            continue
+        if show_gui:
+            figpid = analysed.fig_resp
+            fignoise = analysed.fig_noise
+            # add the plot to the window
+            cnv = window['-IMGPID-'].TKCanvas
+            cnv.delete('all')
+            fig_imgpid = draw_figure(cnv, figpid)
+            cnv = window['-IMGNOISE-'].TKCanvas
+            cnv.delete('all')
+            fig_imgnoise = draw_figure(cnv, fignoise)
+            window.refresh()
 
+            while True:
+                event, values = window.read()
+                if event != 'Save':
+                    break;
+                text = sg.popup_get_folder('Please select save folder', default_path=os.path.dirname(raw_path), initial_folder=os.path.dirname(raw_path))
+                if text is not None and text != "":
+                    file, ext = os.path.splitext(os.path.basename(raw_path))
+                    figpid.savefig(os.path.join(text, "pid_{}.png".format(file)))
+                    fignoise.savefig(os.path.join(text, "noise_{}.png".format(file)))
+
+            if event == sg.WIN_CLOSED or event == 'Close':
+                break;
+            fig_imgpid.get_tk_widget().pack_forget()
+            fig_imgnoise.get_tk_widget().pack_forget()
+        else:
+            plt.show()
+        plt.cla()
+        plt.clf()
+        plt.close('all')
+
+    if show_gui:
+        window.close()
 
 def main():
     logging.basicConfig( format='%(levelname)s %(asctime)s %(filename)s:%(lineno)s: %(message)s', level=logging.INFO)
@@ -111,11 +174,11 @@ def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 
     #Name of folder and plot
-    parser.add_argument('-n', '--name', default='tmp', help='Plot name.')
+    parser.add_argument('-n', '--name', default='plot', help='Plot name.')
 
-    parser.add_argument('-q', '--quiet', action="store_true", help="Do not show GUI windows, only generate pictures.")
+    parser.add_argument('-q', '--quiet', default= False, action="store_true", help="Do not show GUI windows, only generate pictures.")
     parser.add_argument('-m', '--motors', action="store_true", help="Use motors max as throttle instead of rcCommand to analyze motor test bench logs.")
-    parser.add_argument('-i', '--interactive', action="store_true", help="Enter log names interactively")
+    parser.add_argument('-i', '--interactive', default=False, action="store_true", help="Enter log names interactively")
     parser.add_argument('-nn', '--no_noise_plot', default=False, action="store_true", help='do not render noise plot')
     parser.add_argument('-nr', '--no_response_plot', default=False, action="store_true", help='do not render set response plot')
 
@@ -143,7 +206,7 @@ def main():
 
 
     if args.interactive:
-        run_interactive(show_gui, args.noise_bounds, args.motors, args.noise_cmap, args.no_response_plot != True, args.no_noise_plot != True)
+        run_interactive(args.files, args.name, show_gui, args.noise_bounds, args.motors, args.noise_cmap, args.no_response_plot != True, args.no_noise_plot != True)
         sys.exit()
 
     if args.files:
@@ -160,5 +223,5 @@ def main():
         sys.exit()
 
     else:
-        run_interactive(show_gui, args.noise_bounds, args.motors, args.noise_cmap, args.no_response_plot != True, args.no_noise_plot != True)
+        run_interactive(None, args.name, show_gui, args.noise_bounds, args.motors, args.noise_cmap, args.no_response_plot != True, args.no_noise_plot != True)
         sys.exit()
